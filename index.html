@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>집중 타이머</title>
+<style>
+:root{--bg:#e9e6f4;--ink:#2b1f45;--sub:#6e6488;--ring:#cfc9e3;--acc:#5b3fd1;--card:#f7f5fc;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#1a1530;--ink:#ece8fa;--sub:#a79dc9;--ring:#352d57;--acc:#a894ff;--card:#241d42;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;display:flex;justify-content:center;align-items:center;padding:24px 16px}
+main{width:100%;max-width:400px;text-align:center}
+.tabs{display:inline-flex;background:var(--card);border-radius:999px;padding:4px;margin-bottom:24px}
+.tabs button{border:0;background:none;color:var(--sub);font:inherit;font-weight:600;padding:8px 18px;border-radius:999px;cursor:pointer}
+.tabs button[aria-pressed=true]{background:var(--acc);color:var(--bg)}
+.dial{position:relative;width:min(80vw,320px);aspect-ratio:1;margin:0 auto}
+svg{width:100%;height:100%;transform:rotate(-90deg)}
+circle{fill:none;stroke-width:10}
+.track{stroke:var(--ring)}
+.prog{stroke:var(--acc);stroke-linecap:round}
+.time{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.time b{font-size:3.6rem;font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:-1px}
+.time span{color:var(--sub);font-size:.95rem}
+.row{display:flex;gap:10px;margin:28px 0 18px}
+.row button{flex:1;padding:14px;border-radius:14px;border:1.5px solid var(--ring);background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.row .main{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.count{color:var(--sub);font-size:.95rem}
+</style>
+</head>
+<body>
+<main>
+  <div class="tabs" role="group" aria-label="모드">
+    <button data-m="25" aria-pressed="true">집중 25분</button>
+    <button data-m="5" aria-pressed="false">휴식 5분</button>
+  </div>
+  <div class="dial">
+    <svg viewBox="0 0 120 120" aria-hidden="true">
+      <circle class="track" cx="60" cy="60" r="54"/>
+      <circle class="prog" id="prog" cx="60" cy="60" r="54"/>
+    </svg>
+    <div class="time"><b id="t">25:00</b><span id="state">준비</span></div>
+  </div>
+  <div class="row">
+    <button class="main" id="go">시작</button>
+    <button id="reset">초기화</button>
+  </div>
+  <div class="count" id="count"></div>
+</main>
+<script>
+const C=2*Math.PI*54,$=id=>document.getElementById(id);
+const prog=$("prog");prog.style.strokeDasharray=C;
+let mins=25,total=mins*60000,left=total,end=0,timer=null;
+const today=new Date().toISOString().slice(0,10),KEY="focus-"+today;
+let done=0;try{done=+localStorage.getItem(KEY)||0}catch(e){}
+const fmt=ms=>{const s=Math.ceil(ms/1000);return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
+function draw(){
+  $("t").textContent=fmt(left);
+  prog.style.strokeDashoffset=C*(1-left/total);
+  $("count").textContent=`오늘 완료한 집중 세션 ${done}회`;
+  document.title=timer?`${fmt(left)} · 집중 타이머`:"집중 타이머";
+}
+function beep(){
+  try{const a=new AudioContext(),o=a.createOscillator(),g=a.createGain();
+  o.connect(g);g.connect(a.destination);o.frequency.value=880;g.gain.value=.15;
+  o.start();o.stop(a.currentTime+.6)}catch(e){}
+}
+function tick(){
+  left=Math.max(0,end-Date.now());
+  if(left===0){
+    clearInterval(timer);timer=null;beep();
+    if(mins===25){done++;try{localStorage.setItem(KEY,done)}catch(e){}}
+    $("go").textContent="시작";$("state").textContent="완료!";
+  }
+  draw();
+}
+$("go").onclick=()=>{
+  if(timer){clearInterval(timer);timer=null;$("go").textContent="계속";$("state").textContent="일시정지";draw();return}
+  if(left===0)left=total;
+  end=Date.now()+left;timer=setInterval(tick,250);
+  $("go").textContent="일시정지";$("state").textContent=mins===25?"집중 중":"쉬는 중";tick();
+};
+function reset(){clearInterval(timer);timer=null;left=total;$("go").textContent="시작";$("state").textContent="준비";draw()}
+$("reset").onclick=reset;
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  mins=+b.dataset.m;total=mins*60000;
+  document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-pressed",x===b));
+  reset();
+});
+document.addEventListener("keydown",e=>{if(e.code==="Space"&&e.target.tagName!=="BUTTON"){e.preventDefault();$("go").click()}});
+draw();
+</script>
+</body>
+</html>
